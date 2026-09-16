@@ -20,6 +20,11 @@ import {
     syncWatchlist,
     type ServerWatchlist
 } from '../lib/shioaji';
+import {
+    importWatchlistManifest,
+    parseWatchlistImport,
+    type WatchlistImportResult,
+} from '../lib/watchlist-import';
 import { onContractEvent, registerCodeAlias } from '../lib/stream';
 import { notify } from '../lib/trade';
 import type { ContractInfo, SecurityType } from '../lib/types/contract';
@@ -57,6 +62,9 @@ export function useWatchlist() {
     const [initialLoading, setInitialLoading] = useState(true);
     const [serverLists, setServerLists] = useState<ServerWatchlist[]>([]);
     const [activeListId, setActiveListId] = useState<string>('');
+    const itemsRef = useRef(items);
+    itemsRef.current = items;
+    const importInFlight = useRef(false);
     const initStarted = useRef(false);
     const loadSeq = useRef(0);
     const activeIdRef = useRef('');
@@ -125,7 +133,10 @@ export function useWatchlist() {
                     resolveContract(c.code, c.security_type),
                 ),
             );
-            if (loadSeq.current !== seq) return;
+            if (loadSeq.current !== seq) return false;
+            const allContractsResolved = results.every(
+                (result) => result.status === 'fulfilled',
+            );
             const contracts = results
                 .filter(
                     (r): r is PromiseFulfilledResult<ContractInfo> =>
@@ -133,13 +144,13 @@ export function useWatchlist() {
                 )
                 .map((r) => r.value);
             const migrated =
-                results.every((result) => result.status === 'fulfilled') &&
+                allContractsResolved &&
                 contracts.some(
                     (contract, index) =>
                         contract.code !== list.contracts[index]?.code,
                 );
             await Promise.allSettled(contracts.map(subscribeContract));
-            if (loadSeq.current !== seq) return;
+            if (loadSeq.current !== seq) return false;
             setItems(contracts.map((c) => ({ contract: c })));
             attachSnapshots(contracts);
             if (migrated) {
@@ -147,6 +158,7 @@ export function useWatchlist() {
                 await refreshLists();
             }
             setLoading(false);
+            return allContractsResolved;
         },
         [subscribeContract, attachSnapshots, refreshLists],
     );
@@ -162,6 +174,43 @@ export function useWatchlist() {
             void loadList(list);
         },
         [serverLists, loadList],
+    );
+    const importWatchlists = useCallback(
+        async (text: string): Promise<WatchlistImportResult> => {
+            if (importInFlight.current) {
+                throw new Error('已有自選清單匯入正在進行');
+            }
+            importInFlight.current = true;
+            try {
+                const result = await importWatchlistManifest(
+                    parseWatchlistImport(text),
+                );
+                const previousItems = itemsRef.current;
+                try {
+                    const lists = await refreshLists();
+                    const active = lists.find(
+                        (list) => list.id === activeIdRef.current,
+                    );
+                    if (
+                        active &&
+                        result.changedListIds.includes(active.id)
+                    ) {
+                        if (!(await loadList(active))) throw new Error('自選清單重新載入不完整');
+                    }
+                } catch {
+                    // The server mutations are final; keep the pre-reload
+                    // rows visible instead of attempting an unsafe resend.
+                    setItems(previousItems);
+                    setLoading(false);
+                    result.refreshWarning =
+                        '伺服器可能已完成匯入，但畫面刷新失敗；請重新開啟 App 確認';
+                }
+                return result;
+            } finally {
+                importInFlight.current = false;
+            }
+        },
+        [refreshLists, loadList],
     );
 
     const addSymbol = useCallback(
@@ -442,5 +491,6 @@ export function useWatchlist() {
         createList,
         renameCurrentList,
         deleteCurrentList,
+        importWatchlists,
     };
 }

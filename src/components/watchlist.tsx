@@ -7,6 +7,7 @@ import {
     ArrowDownUp,
     ArrowUp,
     Check,
+    FileUp,
     ChevronDown,
     ChevronUp,
     GripVertical,
@@ -37,6 +38,8 @@ import {
 } from '../lib/product-search';
 import { fmtPct, fmtPrice, fmtSigned } from '../lib/utils/format';
 import { Sparkline } from './sparkline';
+import type { WatchlistImportResult } from '../lib/watchlist-import';
+import { WatchlistImportDialog } from './watchlist-import-dialog';
 import * as panel from './panel.css';
 import * as styles from './watchlist.css';
 
@@ -243,6 +246,7 @@ export function Watchlist({
     onCreateList,
     onRenameList,
     onDeleteList,
+    onImport,
     loading,
 }: {
     items: WatchItem[];
@@ -262,6 +266,7 @@ export function Watchlist({
     // resolves false when the rename is rejected (e.g. duplicate name)
     onRenameList: (name: string) => Promise<boolean>;
     onDeleteList: () => Promise<unknown>;
+    onImport: (text: string) => Promise<WatchlistImportResult>;
     loading: boolean;
 }) {
     const [input, setInput] = useState('');
@@ -291,6 +296,7 @@ export function Watchlist({
     }, [input]);
     const [newName, setNewName] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     // inline rename (issue #9) — WKWebView has no working window.prompt,
     // so the picker row swaps to an input: Enter/blur commit, Esc cancels
     const [renaming, setRenaming] = useState(false);
@@ -562,6 +568,14 @@ export function Watchlist({
                             <Plus size={12} />
                         </button>
                         <button
+                            className={styles.listBtn}
+                            title='批次匯入 JSON'
+                            aria-label='批次匯入 JSON'
+                            onClick={() => setImportOpen(true)}
+                        >
+                            <FileUp size={12} />
+                        </button>
+                        <button
                             className={`${styles.listBtn} ${
                                 confirmDelete ? styles.listBtnDanger : ''
                             }`}
@@ -681,6 +695,12 @@ export function Watchlist({
                     {busy ? '…' : '+'}
                 </button>
             </div>
+            {importOpen && (
+                <WatchlistImportDialog
+                    onImport={onImport}
+                    onClose={() => setImportOpen(false)}
+                />
+            )}
         </>
     );
 }
