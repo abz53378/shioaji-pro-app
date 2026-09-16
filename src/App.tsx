@@ -601,6 +601,7 @@ function MainApp() {
         createList,
         renameCurrentList,
         deleteCurrentList,
+        importWatchlists,
     } = useWatchlist();
     const [selected, setSelected] = useState<ContractInfo | null>(null);
     const [agentHarnessEnabled, setAgentHarnessEnabledState] = useState(
@@ -1122,6 +1123,7 @@ function MainApp() {
         onCreateList: createList,
         onRenameList: renameCurrentList,
         onDeleteList: deleteCurrentList,
+        onImport: importWatchlists,
         loading,
     };
     const dockProps = {
