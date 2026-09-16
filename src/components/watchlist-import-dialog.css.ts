@@ -145,6 +145,10 @@ globalStyle(`${failures} li`, { paddingRight: vars.space.sm });
 globalStyle(`${failures} strong`, { color: vars.color.foreground });
 globalStyle(`${failures} span`, { display: 'block', marginTop: '1px' });
 
+export const moreFailures = style({
+    color: vars.color.mutedForeground,
+});
+
 export const footer = style({
     display: 'flex',
     gap: vars.space.sm,
